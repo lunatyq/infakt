@@ -131,7 +131,7 @@ class Infakt
     end
   end
 
-  class InvoiceData
+  class PreKsefInvoiceData
     vattr_initialize :raw_data
 
     include DataProcessing
@@ -318,6 +318,95 @@ class Infakt
           country: "PL"
         }
       end
+    end
+  end
+
+  class KsefInvoiceData
+    vattr_initialize :raw_data
+
+    def attributes
+      {
+        number: raw_data.fetch(:invoice_number),
+        currency: "PLN",
+        kind: 'vat',
+        payment_method: 'transfer',
+        invoice_date: raw_data.fetch(:issue_date),
+        sale_date: raw_data.fetch(:service_supply_date),
+        payment_date: raw_data.fetch(:issue_date),
+        paid_date: nil,
+        net_price: format_number(total_net),
+        tax_price: format_number(total_vat),
+        gross_price: format_number(raw_data.fetch(:gross_value)),
+        left_to_pay: format_number(raw_data.fetch(:gross_value)),
+        client_company_name: buyer.fetch(:name),
+        client_street: buyer.fetch(:street),
+        client_street_number: "",
+        client_flat_number: "",
+        client_country: "PL",
+        client_city: buyer.fetch(:city),
+        client_post_code: buyer.fetch(:postcode),
+        client_tax_code: buyer.fetch(:vat_id),
+        recipient_signature: raw_data.fetch(:contact_name),
+        check_duplicate_number: true,
+        bank_name: seller.fetch(:bank_name),
+        bank_account: seller.fetch(:bank_account_number),
+        invoice_date_kind: "service_date",
+        services: services
+      }
+    end
+
+    private
+
+    def buyer
+      raw_data.fetch(:buyer)
+    end
+
+    def seller
+      raw_data.fetch(:seller)
+    end
+
+    def services
+      raw_data.fetch(:line_items).map { |item| build_service(item) }
+    end
+
+    def build_service(item)
+      net_price = BigDecimal(item.fetch(:net_price).to_s)
+      quantity = item.fetch(:quantity)
+      vat_rate = item.fetch(:vat_rate)
+
+      net_value = net_price * quantity
+      vat = net_value * vat_rate / 100
+      gross = net_value + vat
+
+      tax_symbol = vat_rate == 0 ? "zw" : vat_rate
+
+      {
+        name: item.fetch(:name),
+        tax_symbol: tax_symbol,
+        unit: item.fetch(:unit),
+        quantity: quantity,
+        unit_net_price: format_number(net_price),
+        net_price: format_number(net_value),
+        gross_price: format_number(gross),
+        tax_price: format_number(vat)
+      }
+    end
+
+    def total_net
+      raw_data.fetch(:line_items).sum do |item|
+        BigDecimal(item.fetch(:net_price).to_s) * item.fetch(:quantity)
+      end
+    end
+
+    def total_vat
+      raw_data.fetch(:line_items).sum do |item|
+        net = BigDecimal(item.fetch(:net_price).to_s) * item.fetch(:quantity)
+        net * item.fetch(:vat_rate) / 100
+      end
+    end
+
+    def format_number(value)
+      (BigDecimal(value.to_s) * 100).to_i
     end
   end
 end

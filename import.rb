@@ -28,7 +28,7 @@ end
 files = [Date.today, Date.today-31].map do |date|
   dir = "data/invoices/#{date_to_month_dir(date)}/*.json"
   puts "Processing dir #{dir}"
-  Dir.glob(dir)
+  Dir.glob(dir).reject { |f| f.include?("response") }
 end.flatten
 
 files.each do |path|
@@ -47,18 +47,20 @@ files.each do |path|
     result = Infakt::CorrectiveInvoice.create attrs
     # puts result
   else
-    invoices = Infakt::Invoice.find(data[:number])
-    attrs = Infakt::InvoiceData.new(data).attributes
+    number = data[:number] || data[:invoice_number]
+    invoice_data_class = data.key?(:invoice_number) ? Infakt::KsefInvoiceData : Infakt::PreKsefInvoiceData
+    invoices = Infakt::Invoice.find(number)
+    attrs = invoice_data_class.new(data).attributes
 
     if invoices.any?
       invoice = invoices.first
 
       if invoice['status'] == 'draft'
-        puts "Print #{data[:number]}"
+        puts "Print #{number}"
         result = Infakt::Invoice.print(invoices.first)
         puts result.inspect
       else
-        puts "OK #{data[:number]} #{data[:issue_date]}"
+        puts "OK #{number} #{data[:issue_date]}"
       end
     else
       result = Infakt::Invoice.create attrs

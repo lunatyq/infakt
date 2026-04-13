@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+gode_dir = File.join(__dir__, '.gode')
+ENV['BUNDLE_GEMFILE'] = File.join(gode_dir, 'tools', 'Gemfile')
+require 'bundler/setup'
+$LOAD_PATH.unshift(File.join(gode_dir, 'lib'))
+require 'gode'
+Gode.root = gode_dir
+Gode::CLI.run(ARGV)
